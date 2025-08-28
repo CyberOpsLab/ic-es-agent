@@ -49,8 +49,4 @@ cd $EXTRACT_DIR
 echo "Installing Elastic Agent..."
 ./elastic-agent install --url=$FLEET_URL --enrollment-token=$ENROLLMENT_TOKEN --certificate-authorities="$CERT_PATH"
 
-# Clean up downloaded tar.gz
-echo "Cleaning up downloaded file..."
-rm -f "../$DOWNLOAD_PATH"
-
 echo "Elastic Agent installation completed in $EXTRACT_DIR."
