@@ -2,8 +2,8 @@
 
 # Check if required arguments are provided
 param (
-    [Parameter(Mandatory=$true)][string]$FleetUrl,
-    [Parameter(Mandatory=$true)][string]$EnrollmentToken
+    [Parameter(Mandatory=$true)][string]$fleeturl,
+    [Parameter(Mandatory=$true)][string]$enrollment-token
 )
 
 # Variables
@@ -46,6 +46,6 @@ Set-Location -Path $installPath
 
 # Install Elastic Agent with absolute certificate path
 Write-Host "Installing Elastic Agent..."
-.\elastic-agent.exe install --url=$FleetUrl --enrollment-token=$EnrollmentToken --certificate-authorities=$certPath
+.\elastic-agent.exe install --url=$fleeturl --enrollment-token=$enrollment-token --certificate-authorities=$certPath
 
 Write-Host "Elastic Agent installation completed in $installPath."
