@@ -48,8 +48,4 @@ Set-Location -Path $installPath
 Write-Host "Installing Elastic Agent..."
 .\elastic-agent.exe install --url=$FleetUrl --enrollment-token=$EnrollmentToken --certificate-authorities=$certPath
 
-# Clean up downloaded zip
-Write-Host "Cleaning up downloaded file..."
-Remove-Item -Path $downloadPath -Force
-
 Write-Host "Elastic Agent installation completed in $installPath."
