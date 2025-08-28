@@ -8,7 +8,7 @@ param (
 
 # Variables
 $elasticAgentVersion = "9.1.3"
-$caCrtUrl = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/ca.crt?token=GHSAT0AAAAAADJP3VGZF7W3PGUG76FMXMUY2FQVXOA"
+$caCrtUrl = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/windows-x86_64"
 $elasticAgentUrl = "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-$elasticAgentVersion-windows-x86_64.zip"
 $downloadPath = ".\elastic-agent-$elasticAgentVersion-windows-x86_64.zip"
 $extractDir = ".\elastic-agent-$elasticAgentVersion"
