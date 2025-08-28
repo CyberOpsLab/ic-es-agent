@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Bash Script to Install Elastic Agent 9.1.3 in Current Directory on Linux
+
+# Check if required arguments are provided
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <fleet_url> <enrollment_token>"
+    echo "Example: $0 https://40.192.119.115:8220 N1JIeHA1Z0JLRDk2aWpLajh4a0U6djItX1FXRjBlbzZFWWpzdHVmVDdidw=="
+    exit 1
+fi
+
+# Variables
+ELASTIC_AGENT_VERSION="9.1.3"
+FLEET_URL="$1"
+ENROLLMENT_TOKEN="$2"
+CA_CRT_URL="https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/ca.crt?token=GHSAT0AAAAAADJP3VGZF7W3PGUG76FMXMUY2FQVXOA"
+DOWNLOAD_URL="https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-${ELASTIC_AGENT_VERSION}-linux-x86_64.tar.gz"
+DOWNLOAD_PATH="./elastic-agent-${ELASTIC_AGENT_VERSION}-linux-x86_64.tar.gz"
+EXTRACT_DIR="./elastic-agent-${ELASTIC_AGENT_VERSION}"
+
+# Get the absolute path of the current directory
+CURRENT_DIR=$(pwd)
+CERT_PATH="${CURRENT_DIR}/elastic-agent-${ELASTIC_AGENT_VERSION}/ca.crt"
+
+# Download Elastic Agent to current directory
+echo "Downloading Elastic Agent ${ELASTIC_AGENT_VERSION} to $DOWNLOAD_PATH..."
+curl -L -O $DOWNLOAD_URL
+if [ ! -f "$DOWNLOAD_PATH" ]; then
+    echo "Error: Failed to download Elastic Agent."
+    exit 1
+fi
+
+# Extract the downloaded tar.gz
+echo "Extracting Elastic Agent to $EXTRACT_DIR..."
+tar xzvf $DOWNLOAD_PATH
+
+# Download CA certificate
+echo "Downloading CA certificate to $CERT_PATH..."
+curl -L -o "$CERT_PATH" $CA_CRT_URL
+if [ ! -f "$CERT_PATH" ]; then
+    echo "Error: Failed to download CA certificate."
+    exit 1
+fi
+
+# Change to the extracted directory
+cd $EXTRACT_DIR
+
+# Install Elastic Agent with absolute certificate path
+echo "Installing Elastic Agent..."
+./elastic-agent install --url=$FLEET_URL --enrollment-token=$ENROLLMENT_TOKEN --certificate-authorities="$CERT_PATH"
+
+
+echo "Elastic Agent installation completed in $EXTRACT_DIR."
