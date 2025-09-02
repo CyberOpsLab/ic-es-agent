@@ -12,7 +12,7 @@ $certPath = Join-Path -Path $installPath -ChildPath "ca.crt"
 $scriptUrl = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/windows-x86_64.ps1"
 $scriptPath = ".\windows-x86_64.ps1"
 
-# Trap errors and perform rollback
+# Trap errors and perform rollback with detailed error reporting
 trap {
     Write-Host "Error occurred: $_"
     Write-Host "Rolling back changes..."
@@ -20,18 +20,32 @@ trap {
     # Stop Elastic Agent service if running
     $service = Get-Service -Name "elastic-agent" -ErrorAction SilentlyContinue
     if ($service -and $service.Status -eq "Running") {
-        Stop-Service -Name "elastic-agent" -Force -ErrorAction SilentlyContinue
+        Write-Host "Stopping Elastic Agent service..."
+        Stop-Service -Name "elastic-agent" -Force -ErrorAction Stop
     }
 
-    # Remove downloaded files and directories
-    if (Test-Path $downloadPath) { Remove-Item -Path $downloadPath -Force -ErrorAction SilentlyContinue }
-    if (Test-Path $extractDir) { Remove-Item -Path $extractDir -Recurse -Force -ErrorAction SilentlyContinue }
-    if (Test-Path $scriptPath) { Remove-Item -Path $scriptPath -Force -ErrorAction SilentlyContinue }
-    if (Test-Path $installPath) { Remove-Item -Path $installPath -Recurse -Force -ErrorAction SilentlyContinue }
+    # Remove downloaded files and directories with error reporting
+    if (Test-Path $downloadPath) {
+        Write-Host "Removing $downloadPath..."
+        Remove-Item -Path $downloadPath -Force -ErrorAction Continue
+    }
+    if (Test-Path $extractDir) {
+        Write-Host "Removing $extractDir..."
+        Remove-Item -Path $extractDir -Recurse -Force -ErrorAction Continue
+    }
+    if (Test-Path $scriptPath) {
+        Write-Host "Removing $scriptPath..."
+        Remove-Item -Path $scriptPath -Force -ErrorAction Continue
+    }
+    if (Test-Path $installPath) {
+        Write-Host "Removing $installPath..."
+        Remove-Item -Path $installPath -Recurse -Force -ErrorAction Continue
+    }
 
     # Revert execution policy if changed
     if ($originalExecutionPolicy -and $originalExecutionPolicy -ne "Bypass") {
-        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalExecutionPolicy -Force -ErrorAction SilentlyContinue
+        Write-Host "Reverting execution policy to $originalExecutionPolicy..."
+        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalExecutionPolicy -Force -ErrorAction Continue
     }
 
     exit 1
