@@ -1,5 +1,17 @@
 # PowerShell Script to Install iCompaas-EDR Agent in Current Directory on Windows
 
+# Variables
+$elasticAgentVersion = "9.1.3"
+$caCrtUrl = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/ca.crt"
+$elasticAgentUrl = "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-$elasticAgentVersion-windows-x86_64.zip"
+$downloadPath = ".\elastic-agent-$elasticAgentVersion-windows-x86_64.zip"
+$extractDir = ".\elastic-agent-$elasticAgentVersion"
+$installPath = "C:\Program Files\Elastic\Agent"
+$currentDir = Get-Location
+$certPath = Join-Path -Path $installPath -ChildPath "ca.crt"
+$scriptUrl = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/windows-x86_64.ps1"
+$scriptPath = ".\windows-x86_64.ps1"
+
 # Trap errors and perform rollback
 trap {
     Write-Host "Error occurred: $_"
@@ -51,18 +63,6 @@ param (
     [Parameter(Mandatory=$true)][string]$url,
     [Parameter(Mandatory=$true)][string]$token
 )
-
-# Variables
-$elasticAgentVersion = "9.1.3"
-$caCrtUrl = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/ca.crt"
-$elasticAgentUrl = "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-$elasticAgentVersion-windows-x86_64.zip"
-$downloadPath = ".\elastic-agent-$elasticAgentVersion-windows-x86_64.zip"
-$extractDir = ".\elastic-agent-$elasticAgentVersion"
-$installPath = "C:\Program Files\Elastic\Agent"
-$currentDir = Get-Location
-$certPath = Join-Path -Path $installPath -ChildPath "ca.crt"
-$scriptUrl = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/windows-x86_64.ps1"
-$scriptPath = ".\windows-x86_64.ps1"
 
 # Suppress download progress
 $ProgressPreference = 'SilentlyContinue'
