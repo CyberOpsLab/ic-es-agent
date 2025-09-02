@@ -6,10 +6,10 @@ Install Elastic Agent on Windows with a bundled CA certificate.
 
 [CmdletBinding()]
 param(
-  [Parameter(Mandatory=$true)]
+  [Parameter(Mandatory = $true)]
   [string]$FleetUrl,
 
-  [Parameter(Mandatory=$true)]
+  [Parameter(Mandatory = $true)]
   [string]$EnrollmentToken
 )
 
@@ -35,7 +35,7 @@ try {
   try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
   # Prevent overwrite if already installed
-  if (Get-Service -ErrorAction SilentlyContinue | Where-Object Name -eq "Elastic Agent") {
+  if (Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq "Elastic Agent" }) {
     Write-Warning "Elastic Agent already installed. If you intend to re-install, run 'elastic-agent uninstall' first."
     return
   }
@@ -62,7 +62,13 @@ try {
   Invoke-WebRequest -Uri $CaCertUrl -OutFile $caPath
   if (-not (Test-Path $caPath)) { throw "CA certificate download failed." }
 
-  # Install with --certificate-authorities
+  # Optional: sanity check PEM header
+  $firstLine = (Get-Content -Path $caPath -First 1 -ErrorAction SilentlyContinue)
+  if ($firstLine -notmatch "BEGIN CERTIFICATE") {
+    Write-Warning "Downloaded CA does not look like PEM text. Ensure it's a PEM/CRT trusted by Elastic."
+  }
+
+  # Install with --certificate-authorities (quote the path safely)
   $args = @(
     "install",
     "--url=$FleetUrl",
@@ -73,10 +79,15 @@ try {
   & $agentExe @args
 
   Start-Sleep -Seconds 3
-  $svc = Get-Service -ErrorAction SilentlyContinue | Where-Object Name -eq "Elastic Agent"
+
+  # Ensure service is running
+  $svc = Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq "Elastic Agent" }
   if ($svc) {
-    if ($svc.Status -ne "Running") { Start-Service "Elastic Agent" -ErrorAction SilentlyContinue }
-    Write-Host "Elastic Agent service state: $((Get-Service 'Elastic Agent').Status)"
+    if ($svc.Status -ne "Running") {
+      Start-Service -Name "Elastic Agent" -ErrorAction SilentlyContinue
+      Start-Sleep -Seconds 2
+    }
+    Write-Host ("Elastic Agent service state: " + (Get-Service 'Elastic Agent').Status)
   } else {
     Write-Warning "Elastic Agent service not found—check logs in C:\Program Files\Elastic\Agent\logs"
   }
