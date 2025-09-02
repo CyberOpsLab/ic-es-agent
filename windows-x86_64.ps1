@@ -1,4 +1,3 @@
-$script = @'
 [CmdletBinding()]
 param(
   [Parameter(Mandatory = $true)][string]$FleetUrl,
@@ -25,35 +24,54 @@ try {
   Assert-Admin
   try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-  # Prevent overwrite if already installed
+  # Bail if already installed (avoid clobbering a live agent)
   if (Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'Elastic Agent' }) {
     Write-Warning 'Elastic Agent already installed. If you intend to re-install, run "elastic-agent uninstall" first.'
     return
   }
 
-  $zipName = "elastic-agent-$AgentVersion-$Arch.zip"
-  $zipUrl  = "https://artifacts.elastic.co/downloads/beats/elastic-agent/$zipName"
-  $workDir = Join-Path $env:TEMP ("elastic-agent-install-" + [Guid]::NewGuid().ToString('N'))
-  New-Item -Path $workDir -ItemType Directory | Out-Null
+  # All work stays under USERPROFILE
+  $folderName = "elastic-agent-$AgentVersion-$Arch"
+  $zipName    = "$folderName.zip"
+  $zipUrl     = "https://artifacts.elastic.co/downloads/beats/elastic-agent/$zipName"
 
-  $zipPath = Join-Path $workDir $zipName
+  $userRoot   = $env:USERPROFILE
+  $baseDir    = Join-Path $userRoot $folderName
+  $zipPath    = Join-Path $userRoot $zipName
+
+  # Clean prior artifacts if present
+  if (Test-Path $baseDir) {
+    Write-Host ("Removing existing directory: {0}" -f $baseDir)
+    Remove-Item -Path $baseDir -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  if (Test-Path $zipPath) {
+    Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+  }
+
+  # Download archive to USERPROFILE
   Write-Host ("Downloading Elastic Agent {0}..." -f $AgentVersion)
   Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
 
+  # Extract directly under USERPROFILE (creates $folderName)
   Write-Host 'Extracting archive...'
-  Expand-Archive -Path $zipPath -DestinationPath $workDir -Force
+  Expand-Archive -Path $zipPath -DestinationPath $userRoot -Force
 
-  $agentDir = Join-Path $workDir "elastic-agent-$AgentVersion-$Arch"
-  $agentExe = Join-Path $agentDir 'elastic-agent.exe'
+  # Optionally remove the zip (keeps only the directory under USERPROFILE)
+  Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue
+
+  # cd into the agent directory
+  Set-Location -Path $baseDir
+
+  $agentExe = Join-Path $baseDir 'elastic-agent.exe'
   if (-not (Test-Path $agentExe)) { throw ("elastic-agent.exe not found at {0}" -f $agentExe) }
 
-  # Download CA cert into agent directory
-  $caPath = Join-Path $agentDir 'ca.crt'
+  # Download CA into the same directory
+  $caPath = Join-Path $baseDir 'ca.crt'
   Write-Host ("Downloading CA certificate: {0}" -f $CaCertUrl)
   Invoke-WebRequest -Uri $CaCertUrl -OutFile $caPath
   if (-not (Test-Path $caPath)) { throw 'CA certificate download failed.' }
 
-  # Optional PEM sanity check
+  # Optional: PEM sanity check
   $firstLine = (Get-Content -Path $caPath -First 1 -ErrorAction SilentlyContinue)
   if ($firstLine -notmatch 'BEGIN CERTIFICATE') {
     Write-Warning 'Downloaded CA does not look like PEM text. Ensure it is a PEM/CRT.'
@@ -69,9 +87,10 @@ try {
   Write-Host ('Running: "{0}" {1}' -f $agentExe, ($args -join ' '))
   & $agentExe @args
 
-  Start-Sleep -Seconds 3
+  # Wait ~20s before checking status
+  Start-Sleep -Seconds 20
 
-  # Ensure service is running
+  # Ensure service is running (best effort)
   $svc = Get-Service -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'Elastic Agent' }
   if ($svc) {
     if ($svc.Status -ne 'Running') {
@@ -83,28 +102,27 @@ try {
     Write-Warning 'Elastic Agent service not found—check logs in C:\Program Files\Elastic\Agent\logs'
   }
 
-  # Copy CA into installed directory for persistence
+  # Persist CA into installed path as well (handy for future troubleshooting)
   $installedDir = 'C:\Program Files\Elastic\Agent'
   if (Test-Path $installedDir) {
     Copy-Item -Path $caPath -Destination (Join-Path $installedDir 'ca.crt') -Force
   }
 
-  # Status
+  # Final status output (after the 20s wait)
   $cli = 'C:\Program Files\Elastic\Agent\elastic-agent.exe'
   if (Test-Path $cli) {
-    Write-Host "`n=== elastic-agent status ==="
+    Write-Host "`n=== elastic-agent status (after 20s) ==="
     & $cli status 2>$null | Out-String | Write-Host
+  } else {
+    Write-Warning "CLI not found at $cli"
   }
 
-  Write-Host ("`nInstall complete. CA certificate stored at: {0}" -f $caPath)
+  Write-Host ("`nInstall complete.")
+  Write-Host ("Working directory: {0}" -f $baseDir)
+  Write-Host ("CA certificate stored at: {0}" -f $caPath)
 }
 catch {
   Write-Error $_.Exception.Message
   if ($_.InvocationInfo.PositionMessage) { Write-Host $_.InvocationInfo.PositionMessage }
   exit 1
 }
-'@
-
-$target = Join-Path $env:USERPROFILE 'Downloads\windows-x86_64.ps1'
-Set-Content -Path $target -Value $script -Encoding UTF8
-Write-Host ("Saved script to: {0}" -f $target)
