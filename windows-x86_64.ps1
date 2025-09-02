@@ -1,15 +1,49 @@
 # PowerShell Script to Install iCompaas-EDR Agent in Current Directory on Windows
 
+# Trap errors and perform rollback
+trap {
+    Write-Host "Error occurred: $_"
+    Write-Host "Rolling back changes..."
+
+    # Stop Elastic Agent service if running
+    $service = Get-Service -Name "elastic-agent" -ErrorAction SilentlyContinue
+    if ($service -and $service.Status -eq "Running") {
+        Stop-Service -Name "elastic-agent" -Force -ErrorAction SilentlyContinue
+    }
+
+    # Remove downloaded files and directories
+    if (Test-Path $downloadPath) { Remove-Item -Path $downloadPath -Force -ErrorAction SilentlyContinue }
+    if (Test-Path $extractDir) { Remove-Item -Path $extractDir -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path $scriptPath) { Remove-Item -Path $scriptPath -Force -ErrorAction SilentlyContinue }
+    if (Test-Path $installPath) { Remove-Item -Path $installPath -Recurse -Force -ErrorAction SilentlyContinue }
+
+    # Revert execution policy if changed
+    if ($originalExecutionPolicy -and $originalExecutionPolicy -ne "Bypass") {
+        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalExecutionPolicy -Force -ErrorAction SilentlyContinue
+    }
+
+    exit 1
+}
+
+# Ensure the script runs with PowerShell by forcing execution policy
+if ($PSVersionTable.PSVersion.Major -lt 3) {
+    Write-Host "Error: PowerShell version 3.0 or higher is required."
+    exit 1
+}
+$originalExecutionPolicy = Get-ExecutionPolicy -Scope CurrentUser -ErrorAction SilentlyContinue
+if ($originalExecutionPolicy -ne "Bypass") {
+    try {
+        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force -ErrorAction Stop
+    } catch {
+        Write-Host "Error: Failed to set execution policy. Run with administrative privileges or manually set to Bypass."
+        exit 1
+    }
+}
+
 # Check if running as Administrator
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "Error: This script requires administrative privileges. Please run as Administrator."
     exit 1
-}
-
-# Store original execution policy and set to Bypass
-$originalExecutionPolicy = Get-ExecutionPolicy -Scope CurrentUser
-if ($originalExecutionPolicy -ne "Bypass") {
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
 }
 
 # Define parameters
@@ -36,12 +70,21 @@ $ProgressPreference = 'SilentlyContinue'
 # Ensure TLS 1.2 for secure downloads
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
+# Stop Elastic Agent service if running
+$service = Get-Service -Name "elastic-agent" -ErrorAction SilentlyContinue
+if ($service -and $service.Status -eq "Running") {
+    Write-Host "Stopping Elastic Agent service..."
+    Stop-Service -Name "elastic-agent" -Force -ErrorAction Stop
+}
+
 # Check if directories exist and delete if they do
 if (Test-Path $extractDir) {
-    Remove-Item -Path $extractDir -Recurse -Force
+    Write-Host "Removing existing $extractDir..."
+    Remove-Item -Path $extractDir -Recurse -Force -ErrorAction Stop
 }
 if (Test-Path $installPath) {
-    Remove-Item -Path $installPath -Recurse -Force
+    Write-Host "Removing existing $installPath..."
+    Remove-Item -Path $installPath -Recurse -Force -ErrorAction Stop
 }
 
 # Check if script exists and delete if it does
@@ -98,9 +141,16 @@ if ($installResult.ExitCode -ne 0) {
 Write-Host "Cleaning up downloaded zip file..."
 Remove-Item -Path $downloadPath -Force -ErrorAction SilentlyContinue
 
+# Start Elastic Agent service if it was running
+if ($service -and $service.Status -ne "Running") {
+    Write-Host "Starting Elastic Agent service..."
+    Start-Service -Name "elastic-agent" -ErrorAction SilentlyContinue
+}
+
 # Revert execution policy to original setting
-if ($originalExecutionPolicy -ne "Bypass") {
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalExecutionPolicy -Force
+if ($originalExecutionPolicy -and $originalExecutionPolicy -ne "Bypass") {
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalExecutionPolicy -Force -ErrorAction SilentlyContinue
 }
 
 Write-Host "iCompaas-EDR Agent installation completed in $installPath."
+Write-Host "Extracted files remain in $extractDir."
