@@ -9,7 +9,7 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 # Parameters
 param (
     [Parameter(Mandatory=$true)][string]$fleeturl,
-    [Parameter(Mandatory=$true)][string]$enrollment-token
+    [Parameter(Mandatory=$true)][string]$enrolltoken
 )
 
 # Variables
@@ -63,7 +63,7 @@ Set-Location -Path $installPath
 
 # Install iCompaas-EDR Agent
 Write-Host "Installing iCompaas-EDR Agent..."
-$installResult = Start-Process -FilePath ".\elastic-agent.exe" -ArgumentList "install --url=$fleeturl --enrollment-token=$enrollment-token --certificate-authorities=$certPath" -Wait -PassThru
+$installResult = Start-Process -FilePath ".\elastic-agent.exe" -ArgumentList "install --url=$fleeturl --enrollment-token=$enrolltoken --certificate-authorities=$certPath" -Wait -PassThru
 if ($installResult.ExitCode -ne 0) {
     Write-Host "Error: iCompaas-EDR Agent installation failed with exit code $($installResult.ExitCode)."
     exit 1
