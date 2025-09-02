@@ -8,8 +8,8 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 
 # Parameters
 param (
-    [Parameter(Mandatory=$true)][string]$fleeturl,
-    [Parameter(Mandatory=$true)][string]$enrolltoken
+    [Parameter(Mandatory=$true)][string]$url,
+    [Parameter(Mandatory=$true)][string]$enrollment-token
 )
 
 # Variables
@@ -21,6 +21,8 @@ $extractDir = ".\elastic-agent-$elasticAgentVersion"
 $installPath = "C:\Program Files\Elastic\Agent"
 $currentDir = Get-Location
 $certPath = Join-Path -Path $installPath -ChildPath "ca.crt"
+$scriptUrl = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/windows-x86_64.ps1"
+$scriptPath = ".\windows-x86_64.ps1"
 
 # Suppress download progress
 $ProgressPreference = 'SilentlyContinue'
@@ -28,7 +30,15 @@ $ProgressPreference = 'SilentlyContinue'
 # Ensure TLS 1.2 for secure downloads
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-# Download iCompaas-EDR Agent
+# Check if script exists and delete if it does
+if (Test-Path $scriptPath) {
+    Remove-Item -Path $scriptPath -Force
+}
+
+# Download the script
+Invoke-WebRequest -Uri $scriptUrl -OutFile $scriptPath
+
+# Download Elastic Agent
 Write-Host "Downloading iCompaas-EDR Agent $elasticAgentVersion to $downloadPath..."
 Invoke-WebRequest -Uri $elasticAgentUrl -OutFile $downloadPath
 if (-not (Test-Path $downloadPath)) {
@@ -63,7 +73,7 @@ Set-Location -Path $installPath
 
 # Install iCompaas-EDR Agent
 Write-Host "Installing iCompaas-EDR Agent..."
-$installResult = Start-Process -FilePath ".\elastic-agent.exe" -ArgumentList "install --url=$fleeturl --enrollment-token=$enrolltoken --certificate-authorities=$certPath" -Wait -PassThru
+$installResult = Start-Process -FilePath ".\elastic-agent.exe" -ArgumentList "install --url=$url --enrollment-token=$enrollment-token --certificate-authorities=$certPath" -Wait -PassThru
 if ($installResult.ExitCode -ne 0) {
     Write-Host "Error: iCompaas-EDR Agent installation failed with exit code $($installResult.ExitCode)."
     exit 1
@@ -74,3 +84,4 @@ Write-Host "Cleaning up downloaded zip file..."
 Remove-Item -Path $downloadPath -Force -ErrorAction SilentlyContinue
 
 Write-Host "iCompaas-EDR Agent installation completed in $installPath."
+Write-Host "Extracted files remain in $extractDir."
