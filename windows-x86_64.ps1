@@ -6,10 +6,16 @@ if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
     exit 1
 }
 
-# Parameters
+# Store original execution policy and set to Bypass
+$originalExecutionPolicy = Get-ExecutionPolicy -Scope CurrentUser
+if ($originalExecutionPolicy -ne "Bypass") {
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
+}
+
+# Define parameters
 param (
     [Parameter(Mandatory=$true)][string]$url,
-    [Parameter(Mandatory=$true)][string]$enrolltoken
+    [Parameter(Mandatory=$true)][string]$token
 )
 
 # Variables
@@ -29,6 +35,14 @@ $ProgressPreference = 'SilentlyContinue'
 
 # Ensure TLS 1.2 for secure downloads
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# Check if directories exist and delete if they do
+if (Test-Path $extractDir) {
+    Remove-Item -Path $extractDir -Recurse -Force
+}
+if (Test-Path $installPath) {
+    Remove-Item -Path $installPath -Recurse -Force
+}
 
 # Check if script exists and delete if it does
 if (Test-Path $scriptPath) {
@@ -73,7 +87,8 @@ Set-Location -Path $installPath
 
 # Install iCompaas-EDR Agent
 Write-Host "Installing iCompaas-EDR Agent..."
-$installResult = Start-Process -FilePath ".\elastic-agent.exe" -ArgumentList "install --url=$url --enrollment-token=$enrolltoken --certificate-authorities=$certPath" -Wait -PassThru
+$installArgs = "install --url=$url --token=$token --certificate-authorities=$certPath"
+$installResult = Start-Process -FilePath ".\elastic-agent.exe" -ArgumentList $installArgs -Wait -PassThru
 if ($installResult.ExitCode -ne 0) {
     Write-Host "Error: iCompaas-EDR Agent installation failed with exit code $($installResult.ExitCode)."
     exit 1
@@ -83,5 +98,9 @@ if ($installResult.ExitCode -ne 0) {
 Write-Host "Cleaning up downloaded zip file..."
 Remove-Item -Path $downloadPath -Force -ErrorAction SilentlyContinue
 
+# Revert execution policy to original setting
+if ($originalExecutionPolicy -ne "Bypass") {
+    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalExecutionPolicy -Force
+}
+
 Write-Host "iCompaas-EDR Agent installation completed in $installPath."
-Write-Host "Extracted files remain in $extractDir."
