@@ -1,129 +1,103 @@
-# PowerShell Script to Install iCompaas-EDR Agent in Current User's Folder on Windows
+<# 
+Install Elastic Agent on Windows with a bundled CA certificate.
+- Params: Fleet URL, Enrollment Token
+- CA cert URL + Agent version are fixed in this script.
+#>
 
-# Variables
-$elasticAgentVersion = "9.1.3"
-$caCrtUrl = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/ca.crt"
-$elasticAgentUrl = "https://artifacts.elastic.co/downloads/beats/elastic-agent/elastic-agent-$elasticAgentVersion-windows-x86_64.zip"
-$currentDir = Get-Location
-$installPath = Join-Path -Path $env:USERPROFILE -ChildPath "iCompaas-EDR\Agent"
-$downloadPath = Join-Path -Path $currentDir -ChildPath "elastic-agent-$elasticAgentVersion-windows-x86_64.zip"
-$extractDir = Join-Path -Path $currentDir -ChildPath "elastic-agent-$elasticAgentVersion"
-$certPath = Join-Path -Path $installPath -ChildPath "ca.crt"
-$scriptUrl = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/windows-x86_64.ps1"
-$scriptPath = Join-Path -Path $currentDir -ChildPath "windows-x86_64.ps1"
+[CmdletBinding()]
+param(
+  [Parameter(Mandatory=$true)]
+  [string]$FleetUrl,
 
-# Trap errors and perform rollback
-trap {
-    Write-Host "Error occurred: $_"
-    Write-Host "Rolling back changes..."
-
-    # Stop Elastic Agent service if running
-    $service = Get-Service -Name "elastic-agent" -ErrorAction SilentlyContinue
-    if ($service -and $service.Status -eq "Running") {
-        Stop-Service -Name "elastic-agent" -Force -ErrorAction Continue
-    }
-
-    # Remove downloaded files and directories
-    if (Test-Path $downloadPath) { Remove-Item -Path $downloadPath -Force -ErrorAction Continue }
-    if (Test-Path $extractDir) { Remove-Item -Path $extractDir -Recurse -Force -ErrorAction Continue }
-    if (Test-Path $scriptPath) { Remove-Item -Path $scriptPath -Force -ErrorAction Continue }
-    if (Test-Path $installPath) { Remove-Item -Path $installPath -Recurse -Force -ErrorAction Continue }
-
-    # Revert execution policy if changed
-    if ($originalExecutionPolicy -and $originalExecutionPolicy -ne "Bypass") {
-        Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalExecutionPolicy -Force -ErrorAction Continue
-    }
-
-    exit 1
-}
-
-# Ensure TLS 1.2 for secure downloads
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-# Suppress download progress
-$ProgressPreference = 'SilentlyContinue'
-
-# Check if running as Administrator
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "Error: This script requires administrative privileges. Please run as Administrator."
-    exit 1
-}
-
-# Store original execution policy and set to Bypass if necessary
-$originalExecutionPolicy = Get-ExecutionPolicy -Scope CurrentUser -ErrorAction SilentlyContinue
-if ($originalExecutionPolicy -ne "Bypass") {
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy Bypass -Force
-}
-
-# Define parameters
-param (
-    [Parameter(Mandatory=$true)][string]$url,
-    [Parameter(Mandatory=$true)][string]$enrollment_token
+  [Parameter(Mandatory=$true)]
+  [string]$EnrollmentToken
 )
 
-# Stop Elastic Agent service if running
-$service = Get-Service -Name "elastic-agent" -ErrorAction SilentlyContinue
-if ($service -and $service.Status -eq "Running") {
-    Stop-Service -Name "elastic-agent" -Force -ErrorAction Stop
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+
+# ======= FIXED VALUES =======
+$AgentVersion = "9.1.3"
+$Arch         = "windows-x86_64"
+$CaCertUrl    = "https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/ca.crt"
+# ============================
+
+function Assert-Admin {
+  $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $pr = New-Object Security.Principal.WindowsPrincipal($id)
+  if (-not $pr.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw "Run this script in an elevated (Administrator) PowerShell."
+  }
 }
 
-# Check if directories exist and delete if they do
-if (Test-Path $extractDir) {
-    Remove-Item -Path $extractDir -Recurse -Force -ErrorAction Stop
+try {
+  Assert-Admin
+  try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
+
+  # Prevent overwrite if already installed
+  if (Get-Service -ErrorAction SilentlyContinue | Where-Object Name -eq "Elastic Agent") {
+    Write-Warning "Elastic Agent already installed. If you intend to re-install, run 'elastic-agent uninstall' first."
+    return
+  }
+
+  $zipName = "elastic-agent-$AgentVersion-$Arch.zip"
+  $zipUrl  = "https://artifacts.elastic.co/downloads/beats/elastic-agent/$zipName"
+  $workDir = Join-Path $env:TEMP ("elastic-agent-install-" + [Guid]::NewGuid().ToString("N"))
+  New-Item -Path $workDir -ItemType Directory | Out-Null
+
+  $zipPath = Join-Path $workDir $zipName
+  Write-Host "Downloading Elastic Agent $AgentVersion..."
+  Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
+
+  Write-Host "Extracting archive..."
+  Expand-Archive -Path $zipPath -DestinationPath $workDir -Force
+
+  $agentDir = Join-Path $workDir "elastic-agent-$AgentVersion-$Arch"
+  $agentExe = Join-Path $agentDir "elastic-agent.exe"
+  if (-not (Test-Path $agentExe)) { throw "elastic-agent.exe not found at $agentExe" }
+
+  # Download CA cert into agent directory
+  $caPath = Join-Path $agentDir "ca.crt"
+  Write-Host "Downloading CA certificate: $CaCertUrl"
+  Invoke-WebRequest -Uri $CaCertUrl -OutFile $caPath
+  if (-not (Test-Path $caPath)) { throw "CA certificate download failed." }
+
+  # Install with --certificate-authorities
+  $args = @(
+    "install",
+    "--url=$FleetUrl",
+    "--enrollment-token=$EnrollmentToken",
+    "--certificate-authorities=`"$caPath`""
+  )
+  Write-Host "Running: `"$agentExe`" $($args -join ' ')"
+  & $agentExe @args
+
+  Start-Sleep -Seconds 3
+  $svc = Get-Service -ErrorAction SilentlyContinue | Where-Object Name -eq "Elastic Agent"
+  if ($svc) {
+    if ($svc.Status -ne "Running") { Start-Service "Elastic Agent" -ErrorAction SilentlyContinue }
+    Write-Host "Elastic Agent service state: $((Get-Service 'Elastic Agent').Status)"
+  } else {
+    Write-Warning "Elastic Agent service not found—check logs in C:\Program Files\Elastic\Agent\logs"
+  }
+
+  # Copy CA into installed directory for persistence
+  $installedDir = "C:\Program Files\Elastic\Agent"
+  if (Test-Path $installedDir) {
+    Copy-Item -Path $caPath -Destination (Join-Path $installedDir "ca.crt") -Force
+  }
+
+  # Status
+  $cli = "C:\Program Files\Elastic\Agent\elastic-agent.exe"
+  if (Test-Path $cli) {
+    Write-Host "`n=== elastic-agent status ==="
+    & $cli status 2>$null | Out-String | Write-Host
+  }
+
+  Write-Host "`nInstall complete. CA certificate stored at: $caPath"
 }
-if (Test-Path $installPath) {
-    Remove-Item -Path $installPath -Recurse -Force -ErrorAction Stop
-}
-
-# Check if script exists and delete if it does
-if (Test-Path $scriptPath) {
-    Remove-Item -Path $scriptPath -Force
-}
-
-# Download the script
-Invoke-WebRequest -Uri $scriptUrl -OutFile $scriptPath
-
-# Download Elastic Agent
-Invoke-WebRequest -Uri $elasticAgentUrl -OutFile $downloadPath
-if (-not (Test-Path $downloadPath)) {
-    throw "Failed to download Elastic Agent."
-}
-
-# Extract the downloaded zip
-Expand-Archive -Path $downloadPath -DestinationPath $extractDir -Force
-
-# Download CA certificate to extract directory
-$tempCertPath = Join-Path -Path $extractDir -ChildPath "ca.crt"
-Invoke-WebRequest -Uri $caCrtUrl -OutFile $tempCertPath
-if (-not (Test-Path $tempCertPath)) {
-    throw "Failed to download CA certificate."
-}
-
-# Create installation directory
-New-Item -Path $installPath -ItemType Directory -Force
-
-# Move files to installation directory
-Move-Item -Path (Join-Path -Path $extractDir -ChildPath "elastic-agent-$elasticAgentVersion-windows-x86_64\*") -Destination $installPath -Force
-Move-Item -Path $tempCertPath -Destination $certPath -Force
-
-# Change to the installation directory
-Set-Location -Path $installPath
-
-# Install iCompaas-EDR Agent
-$installResult = Start-Process -FilePath ".\elastic-agent.exe" -ArgumentList "install --url=$url --enrollment-token=$enrollment_token --certificate-authorities=$certPath" -Wait -PassThru
-if ($installResult.ExitCode -ne 0) {
-    throw "Elastic Agent installation failed with exit code $($installResult.ExitCode)."
-}
-
-# Silent cleanup of downloaded zip file
-Remove-Item -Path $downloadPath -Force -ErrorAction SilentlyContinue
-
-# Start Elastic Agent service if it was running
-if ($service -and $service.Status -ne "Running") {
-    Start-Service -Name "elastic-agent" -ErrorAction SilentlyContinue
-}
-
-# Revert execution policy to original setting
-if ($originalExecutionPolicy -and $originalExecutionPolicy -ne "Bypass") {
-    Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy $originalExecutionPolicy -Force -ErrorAction SilentlyContinue
+catch {
+  Write-Error $_.Exception.Message
+  if ($_.InvocationInfo.PositionMessage) { Write-Host $_.InvocationInfo.PositionMessage }
+  exit 1
 }
