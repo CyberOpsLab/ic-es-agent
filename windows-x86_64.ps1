@@ -42,7 +42,7 @@ try {
   }
 
   # Download archive to USERPROFILE
-  Write-Host ("Downloading Elastic Agent {0}..." -f $AgentVersion)
+  Write-Host ("Downloading iCompaas-EDR Agent {0}..." -f $AgentVersion)
   Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
 
   # Extract directly under USERPROFILE (creates $folderName)
@@ -60,7 +60,7 @@ try {
 
   # Download CA into the same directory
   $caPath = Join-Path $baseDir 'ca.crt'
-  Write-Host ("Downloading CA certificate: {0}" -f $CaCertUrl)
+  Write-Host ("Downloading your Organization CA certificate: {0}" -f $CaCertUrl)
   Invoke-WebRequest -Uri $CaCertUrl -OutFile $caPath
   if (-not (Test-Path $caPath)) { throw 'CA certificate download failed.' }
 
