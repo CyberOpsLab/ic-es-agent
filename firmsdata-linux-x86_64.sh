@@ -8,7 +8,7 @@ VER="9.1.3"
 PKG="elastic-agent-${VER}-linux-x86_64"
 TARBALL="${PKG}.tar.gz"
 BASE_DIR="${HOME}/${PKG}"
-CA_URL="https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/ca.crt"
+CA_URL="https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/fd-ca.crt"
 CA_PATH="${BASE_DIR}/ca.crt"
 
 cd "${HOME}"
