@@ -59,7 +59,7 @@ try {
   if (-not (Test-Path $agentExe)) { throw ("elastic-agent.exe not found at {0}" -f $agentExe) }
 
   # Download CA into the same directory
-  $caPath = Join-Path $baseDir 'ca.crt'
+  $caPath = Join-Path $baseDir 'fd-ca.crt'
   Write-Host ("Downloading your Organization CA certificate: {0}" -f $CaCertUrl)
   Invoke-WebRequest -Uri $CaCertUrl -OutFile $caPath
   if (-not (Test-Path $caPath)) { throw 'CA certificate download failed.' }
@@ -83,7 +83,7 @@ try {
   # Persist a copy of the CA into the installed path (helpful for later troubleshooting)
   $installedDir = 'C:\Program Files\Elastic\Agent'
   if (Test-Path $installedDir) {
-    Copy-Item -Path $caPath -Destination (Join-Path $installedDir 'ca.crt') -Force
+    Copy-Item -Path $caPath -Destination (Join-Path $installedDir 'fd-ca.crt') -Force
   }
 
   Write-Host ("`nInstall step invoked. Working directory: {0}" -f $baseDir)
