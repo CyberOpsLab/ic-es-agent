@@ -9,7 +9,7 @@ PKG="elastic-agent-${VER}-linux-x86_64"
 TARBALL="${PKG}.tar.gz"
 BASE_DIR="${HOME}/${PKG}"
 CA_URL="https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/fd-ca.crt"
-CA_PATH="${BASE_DIR}/ca.crt"
+CA_PATH="${BASE_DIR}/fd-ca.crt"
 
 cd "${HOME}"
 
@@ -30,4 +30,4 @@ cd "${BASE_DIR}"
 sudo ./elastic-agent install \
   --url="${FLEET_URL}" \
   --enrollment-token="${ENROLL_TOKEN}" \
-  --certificate-authorities="$(pwd)/ca.crt"
+  --certificate-authorities="$(pwd)/fd-ca.crt"
