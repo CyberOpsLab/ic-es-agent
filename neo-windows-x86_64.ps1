@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 # Fixed values
-$AgentVersion = '9.1.3'
+$AgentVersion = '9.1.4'
 $Arch         = 'windows-x86_64'
 $CaCertUrl    = 'https://raw.githubusercontent.com/CyberOpsLab/ic-es-agent/refs/heads/main/neo.crt'
 
