@@ -4,7 +4,7 @@ set -euo pipefail
 FLEET_URL="${1:?Usage: $0 <fleet_url> <enrollment_token>}"
 ENROLL_TOKEN="${2:?Usage: $0 <fleet_url> <enrollment_token>}"
 
-VER="9.1.3"
+VER="9.1.4"
 PKG="elastic-agent-${VER}-linux-x86_64"
 TARBALL="${PKG}.tar.gz"
 BASE_DIR="${HOME}/${PKG}"
